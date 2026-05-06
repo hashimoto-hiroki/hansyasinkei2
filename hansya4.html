@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>反射神経</title>
+
+<style>
+body {
+    margin: 0;
+    text-align: center;
+    background: #f5f5f5;
+}
+
+#gameArea {
+    position: relative;
+    width: 100vw;
+    height: 70vh;
+    background: white;
+    border-top: 3px solid black;
+}
+
+#target {
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    background: black;
+    display: none;
+}
+
+.fake {
+    position: absolute;
+}
+
+/* 円 */
+.circle {
+    width: 40px;
+    height: 40px;
+    background: black;
+    border-radius: 50%;
+}
+
+/* 三角 */
+.triangle-up {
+    width: 0;
+    height: 0;
+    border-left: 20px solid transparent;
+    border-right: 20px solid transparent;
+    border-bottom: 40px solid black;
+}
+
+/* 逆三角 */
+.triangle-down {
+    width: 0;
+    height: 0;
+    border-left: 20px solid transparent;
+    border-right: 20px solid transparent;
+    border-top: 40px solid black;
+}
+
+/* 五角形 */
+.pentagon {
+    width: 40px;
+    height: 40px;
+    background: black;
+    clip-path: polygon(
+        50% 0%,
+        100% 38%,
+        82% 100%,
+        18% 100%,
+        0% 38%
+    );
+}
+
+/* 星 */
+.star {
+    width: 40px;
+    height: 40px;
+    background: black;
+    clip-path: polygon(
+        50% 0%, 61% 35%, 98% 35%,
+        68% 57%, 79% 91%,
+        50% 70%, 21% 91%,
+        32% 57%, 2% 35%,
+        39% 35%
+    );
+}
+
+button {
+    font-size: 20px;
+    padding: 10px 20px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>反射神経チェッカー</h2>
+<div id="timer">残り時間: 30.000</div>
+<button onclick="startGame()">スタート</button>
+<div id="countdown"></div>
+
+<div id="gameArea">
+    <div id="target"></div>
+</div>
+
+<div id="result"></div>
+
+<script>
+let reactionTimes = [];
+let gameRunning = false;
+let clickStartTime;
+let startTime;
+let timerInterval;
+let fakeList = [];
+
+const target = document.getElementById("target");
+const gameArea = document.getElementById("gameArea");
+const result = document.getElementById("result");
+const timer = document.getElementById("timer");
+
+// ===== ランク =====
+function getRank(avg){
+    if(avg <= 0.25) return "S";
+    if(avg <= 0.35) return "A";
+    if(avg <= 0.45) return "B";
+    if(avg <= 0.55) return "C";
+    if(avg <= 0.70) return "D";
+    return "E";
+}
+
+// ===== スタート =====
+function startGame(){
+    reactionTimes = [];
+    result.innerHTML = "";
+
+    let count = 3;
+    document.getElementById("countdown").textContent = count;
+
+    const cd = setInterval(()=>{
+        count--;
+        if(count > 0){
+            document.getElementById("countdown").textContent = count;
+        }else if(count === 0){
+            document.getElementById("countdown").textContent = "START!";
+        }else{
+            clearInterval(cd);
+            document.getElementById("countdown").textContent = "";
+            beginGame();
+        }
+    },1000);
+}
+
+// ===== ゲーム開始 =====
+function beginGame(){
+    gameRunning = true;
+    startTime = performance.now();
+
+    spawn();
+
+    timerInterval = setInterval(()=>{
+        let t = (performance.now() - startTime)/1000;
+        let remain = Math.max(0,30 - t);
+
+        timer.textContent = "残り時間: " + remain.toFixed(3);
+
+        if(remain <= 0){
+            endGame();
+        }
+    },10);
+}
+
+// ===== 出現 =====
+function spawn(){
+    if(!gameRunning) return;
+
+    clearFake();
+
+    let rect = gameArea.getBoundingClientRect();
+    let size = 40;
+
+    let x = Math.random()*(rect.width-size);
+    let y = Math.random()*(rect.height-size);
+
+    target.style.left = x+"px";
+    target.style.top = y+"px";
+    target.style.display = "block";
+
+    clickStartTime = performance.now();
+
+    createFake();
+}
+
+// ===== クリック =====
+target.onclick = ()=>{
+    if(!gameRunning) return;
+
+    let t = (performance.now() - clickStartTime)/1000;
+    reactionTimes.push(t);
+
+    setTimeout(spawn,50);
+};
+
+// ===== フェイク（さらに4倍 → 合計16倍）=====
+function createFake(){
+    let base = Math.min(10, Math.floor(reactionTimes.length/3)+1);
+    let n = base * 16;
+
+    const shapes = [
+        "circle",
+        "triangle-up",
+        "triangle-down",
+        "pentagon",
+        "star"
+    ];
+
+    for(let i=0;i<n;i++){
+        let f = document.createElement("div");
+
+        let shape = shapes[Math.floor(Math.random()*shapes.length)];
+        f.className = "fake " + shape;
+
+        let rect = gameArea.getBoundingClientRect();
+        f.style.left = Math.random()*(rect.width-40)+"px";
+        f.style.top = Math.random()*(rect.height-40)+"px";
+
+        gameArea.appendChild(f);
+        fakeList.push(f);
+    }
+}
+
+function clearFake(){
+    fakeList.forEach(e=>e.remove());
+    fakeList=[];
+}
+
+// ===== 終了 =====
+function endGame(){
+    gameRunning=false;
+    clearInterval(timerInterval);
+    target.style.display="none";
+    clearFake();
+
+    let avg = 0;
+
+    if(reactionTimes.length>0){
+        let sum = reactionTimes.reduce((a,b)=>a+b,0);
+        avg = sum/reactionTimes.length;
+    }
+
+    let rank = getRank(avg);
+
+    result.innerHTML =
+        "<h2>ゲーム終了</h2>" +
+        "<p>平均反応時間: " + avg.toFixed(3) + " 秒</p>" +
+        "<p>成功回数: " + reactionTimes.length + "</p>" +
+        "<h1>ランク: " + rank + "</h1>";
+}
+</script>
+
+</body>
+</html>
